@@ -1,29 +1,40 @@
 import os
 import requests
-import logging
+import hmac
+import hashlib
+import time
 
-logging.basicConfig(level=logging.INFO)
-
-def transfer_crypto(amount, bank_account):
-    api_key = os.getenv('EXCHANGE_API_KEY')
-    secret_key = os.getenv('EXCHANGE_SECRET_KEY')
-    if not api_key or not secret_key:
-        logging.error("API key and Secret key must be provided via environment variables.")
-        return
-
-    try:
-        # Placeholder URL and parameters; replace with actual API details
-        url = 'https://api.exchange.com/v1/withdraw'
-        params = {
-            'api_key': api_key,
-            'amount': amount,
-            'bank_account': bank_account
-        }
-        response = requests.post(url, json=params)
-        response.raise_for_status()
-        logging.info(f"Successfully transferred {amount} to bank account {bank_account}")
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Failed to transfer: {e}")
+def transfer_crypto(api_key, secret_key, amount, address):
+    base_url = 'https://api.binance.com'
+    endpoint = '/wapi/v3/withdraw.html'
+    timestamp = int(time.time() * 1000)
+    
+    params = {
+        'asset': 'USDT',
+        'address': address,
+        'amount': amount,
+        'timestamp': timestamp
+    }
+    
+    query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+    signature = hmac.new(secret_key.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
+    params['signature'] = signature
+    
+    headers = {
+        'X-MBX-APIKEY': api_key
+    }
+    
+    response = requests.post(base_url + endpoint, params=params, headers=headers)
+    if response.status_code == 200:
+        print(response.json())
+    else:
+        print(f"Error: {response.status_code}, {response.text}")
 
 if __name__ == "__main__":
-    transfer_crypto(10, 'your_bank_account')
+    api_key = os.getenv('BINANCE_API_KEY')
+    secret_key = os.getenv('BINANCE_SECRET_KEY')
+    address = os.getenv('WITHDRAW_ADDRESS')
+    if api_key and secret_key and address:
+        transfer_crypto(api_key, secret_key, 10, address)
+    else:
+        print("API key, Secret key, and Withdraw address must be set in environment variables.")
